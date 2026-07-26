@@ -1,0 +1,7 @@
+etc/kolla/passwords.yml
+etc/kolla/clouds.yaml
+etc/kolla/admin-openrc.sh
+*.pem
+*.key
+*.crt
+.venv/
