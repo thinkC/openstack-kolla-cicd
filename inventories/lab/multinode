@@ -2,7 +2,7 @@
 # additional groups are for more control of the environment.
 [control]
 # These hostname must be resolvable from your deployment host
-openstack-aio ansible_host=192.168.56.10
+openstack-aio ansible_host=192.168.56.10 ansible_become=true
 
 # The above can also be specified as follows:
 #control[01:03]     ansible_user=kolla
@@ -27,7 +27,7 @@ openstack-aio ansible_host=192.168.56.10
 openstack-aio ansible_host=192.168.56.10
 
 [deployment]
-localhost       ansible_connection=local
+localhost       ansible_connection=local ansible_become=false
 
 [baremetal:children]
 control

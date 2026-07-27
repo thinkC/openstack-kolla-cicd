@@ -1,5 +1,4 @@
-pipeline {
-    agent any
+   agent any
 
     options {
         timestamps()
@@ -7,33 +6,26 @@ pipeline {
     }
 
     environment {
-        KOLLA_VENV = '/opt/kolla-venv'
+        PATH = "/opt/kolla-venv/bin:${env.PATH}"
         KOLLA_INVENTORY = "${WORKSPACE}/inventories/lab/multinode"
         KOLLA_CONFIG_PATH = "${WORKSPACE}/etc/kolla"
-        PATH = "/opt/kolla-venv/bin:${env.PATH}"
-        ANSIBLE_HOST_KEY_CHECKING = 'True'
+        ANSIBLE_HOST_KEY_CHECKING = "True"
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Validate Files') {
             steps {
-                sh '''
-                    set -euxo pipefail
+                sh '''#!/usr/bin/env bash
+set -euxo pipefail
 
-                    test -f "${KOLLA_INVENTORY}"
-                    test -f "${KOLLA_CONFIG_PATH}/globals.yml"
+test -f "${KOLLA_INVENTORY}"
+test -f "${KOLLA_CONFIG_PATH}/globals.yml"
 
-                    ansible-inventory \
-                      -i "${KOLLA_INVENTORY}" \
-                      --graph
+ansible-inventory \
+  -i "${KOLLA_INVENTORY}" \
+  --graph
 
-                    python - <<'PY'
+python - <<'PY'
 import yaml
 
 with open("etc/kolla/globals.yml", encoding="utf-8") as stream:
@@ -41,127 +33,61 @@ with open("etc/kolla/globals.yml", encoding="utf-8") as stream:
 
 print("globals.yml syntax is valid")
 PY
-                '''
+'''
             }
         }
 
-        stage('Prepare Secrets') {
-            steps {
-                withCredentials([
-                    file(
-                        credentialsId: 'kolla-passwords-yml',
-                        variable: 'KOLLA_PASSWORDS_FILE'
-                    )
-                ]) {
-                    sh '''
-                        set -eux
-
-                        install -m 600 \
-                          "${KOLLA_PASSWORDS_FILE}" \
-                          "${KOLLA_CONFIG_PATH}/passwords.yml"
-                    '''
-                }
-            }
-        }
-
-        stage('Connectivity Test') {
+        stage('Test SSH') {
             steps {
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
-                    sh '''
-                        set -euxo pipefail
+                    sh '''#!/usr/bin/env bash
+set -euxo pipefail
 
-                        ansible \
-                          -i "${KOLLA_INVENTORY}" \
-                          all \
-                          -m ping
-                    '''
+ssh \
+  -o BatchMode=yes \
+  -o StrictHostKeyChecking=yes \
+  vagrant@192.168.56.10 \
+  'hostname && sudo -n id'
+'''
                 }
             }
         }
 
-        stage('Prechecks') {
+        stage('Test Ansible') {
             steps {
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
-                    sh '''
-                        set -euxo pipefail
+                    sh '''#!/usr/bin/env bash
+set -euxo pipefail
 
-                        kolla-ansible prechecks \
-                          -i "${KOLLA_INVENTORY}" \
-                          --configdir "${KOLLA_CONFIG_PATH}" \
-                          --use-test-images
-                    '''
+ansible \
+  -i "${KOLLA_INVENTORY}" \
+  all \
+  -m ping
+'''
                 }
             }
         }
 
-        stage('Deploy') {
-            when {
-                branch 'main'
-            }
-
-            steps {
-                input message: 'Deploy OpenStack configuration?'
-
-                sshagent(credentials: ['openstack-aio-ssh-key']) {
-                    sh '''
-                        set -euxo pipefail
-
-                        kolla-ansible deploy \
-                          -i "${KOLLA_INVENTORY}" \
-                          --configdir "${KOLLA_CONFIG_PATH}" \
-                          --use-test-images
-                    '''
-                }
-            }
-        }
-
-        stage('Post Deploy') {
-            when {
-                branch 'main'
-            }
-
+        stage('Test Remote Privilege Escalation') {
             steps {
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
-                    sh '''
-                        set -euxo pipefail
+                    sh '''#!/usr/bin/env bash
+set -euxo pipefail
 
-                        kolla-ansible post-deploy \
-                          -i "${KOLLA_INVENTORY}" \
-                          --configdir "${KOLLA_CONFIG_PATH}"
-                    '''
+ansible \
+  -i "${KOLLA_INVENTORY}" \
+  openstack-aio \
+  -b \
+  -m command \
+  -a 'id'
+'''
                 }
-            }
-        }
-
-        stage('Smoke Tests') {
-            when {
-                branch 'main'
-            }
-
-            steps {
-                sh '''
-                    set -euxo pipefail
-
-                    export OS_CLIENT_CONFIG_FILE="${KOLLA_CONFIG_PATH}/clouds.yaml"
-                    export OS_CLOUD=kolla-admin
-
-                    openstack token issue
-                    openstack service list
-                    openstack compute service list
-                    openstack network agent list
-                    openstack hypervisor list
-                '''
             }
         }
     }
 
     post {
         always {
-            sh '''
-                rm -f "${KOLLA_CONFIG_PATH}/passwords.yml"
-                rm -f "${KOLLA_CONFIG_PATH}/clouds.yaml"
-            '''
-
             cleanWs()
         }
     }
