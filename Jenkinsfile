@@ -16,50 +16,50 @@ pipeline {
 
     stages {
         stage('Validate Deployer Dependencies') {
-        steps {
+            steps {
                 sh '''#!/usr/bin/env bash
-        set -euxo pipefail
+set -euxo pipefail
 
-        echo "Running as: $(whoami)"
-        echo "HOME=${HOME}"
+echo "Running as: $(whoami)"
+echo "HOME=${HOME}"
 
-        python - <<'PY'
-        import docker
-        import dbus
-        import netaddr
-        import yaml
+python - <<'PY'
+import docker
+import dbus
+import netaddr
+import yaml
 
-        print("docker:", docker.__version__)
-        print("dbus: available")
-        print("netaddr:", netaddr.__version__)
-        print("yaml: available")
-        PY
+print("docker:", docker.__version__)
+print("dbus: available")
+print("netaddr:", netaddr.__version__)
+print("yaml: available")
+PY
 
-        ansible-galaxy collection list |
-        grep -E 'ansible.utils|community.general'
+ansible-galaxy collection list |
+grep -E 'ansible.utils|community.general'
 
-        ansible-doc \
-        -t filter \
-        ansible.utils.ipaddr >/dev/null
+ansible-doc \
+  -t filter \
+  ansible.utils.ipaddr >/dev/null
 
-        echo "Deployer dependencies are valid"
-        '''
+echo "Deployer dependencies are valid"
+'''
             }
         }
 
         stage('Validate Files') {
             steps {
                 sh '''#!/usr/bin/env bash
-                    set -euxo pipefail 
+set -euxo pipefail
 
-                    test -f "${KOLLA_INVENTORY}"
-                    test -f "${KOLLA_CONFIG_PATH}/globals.yml"
+test -f "${KOLLA_INVENTORY}"
+test -f "${KOLLA_CONFIG_PATH}/globals.yml"
 
-                    ansible-inventory \
-                      -i "${KOLLA_INVENTORY}" \
-                      --graph
-                    
-                    python - <<'PY'
+ansible-inventory \
+  -i "${KOLLA_INVENTORY}" \
+  --graph
+
+python - <<'PY'
 import yaml
 
 with open("etc/kolla/globals.yml", encoding="utf-8") as stream:
@@ -67,7 +67,7 @@ with open("etc/kolla/globals.yml", encoding="utf-8") as stream:
 
 print("globals.yml syntax is valid")
 PY
-                '''
+'''
             }
         }
 
@@ -80,12 +80,12 @@ PY
                     )
                 ]) {
                     sh '''#!/usr/bin/env bash
-                        set -euxo pipefail
+set -euxo pipefail
 
-                        install -m 600 \
-                          "${KOLLA_PASSWORDS_FILE}" \
-                          "${KOLLA_CONFIG_PATH}/passwords.yml"
-                    '''
+install -m 600 \
+  "${KOLLA_PASSWORDS_FILE}" \
+  "${KOLLA_CONFIG_PATH}/passwords.yml"
+'''
                 }
             }
         }
@@ -94,13 +94,13 @@ PY
             steps {
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
                     sh '''#!/usr/bin/env bash
-                        set -euxo pipefail
+set -euxo pipefail
 
-                        ansible \
-                          -i "${KOLLA_INVENTORY}" \
-                          all \
-                          -m ping
-                    '''
+ansible \
+  -i "${KOLLA_INVENTORY}" \
+  all \
+  -m ping
+'''
                 }
             }
         }
@@ -109,13 +109,13 @@ PY
             steps {
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
                     sh '''#!/usr/bin/env bash
-                        set -euxo pipefail
+set -euxo pipefail
 
-                        kolla-ansible prechecks \
-                          -i "${KOLLA_INVENTORY}" \
-                          --configdir "${KOLLA_CONFIG_PATH}" \
-                          --use-test-images
-                    '''
+kolla-ansible prechecks \
+  -i "${KOLLA_INVENTORY}" \
+  --configdir "${KOLLA_CONFIG_PATH}" \
+  --use-test-images
+'''
                 }
             }
         }
@@ -130,13 +130,13 @@ PY
 
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
                     sh '''#!/usr/bin/env bash
-                        set -euxo pipefail
+set -euxo pipefail
 
-                        kolla-ansible deploy \
-                          -i "${KOLLA_INVENTORY}" \
-                          --configdir "${KOLLA_CONFIG_PATH}" \
-                          --use-test-images
-                    '''
+kolla-ansible deploy \
+  -i "${KOLLA_INVENTORY}" \
+  --configdir "${KOLLA_CONFIG_PATH}" \
+  --use-test-images
+'''
                 }
             }
         }
@@ -149,12 +149,12 @@ PY
             steps {
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
                     sh '''#!/usr/bin/env bash
-                        set -euxo pipefail
+set -euxo pipefail
 
-                        kolla-ansible post-deploy \
-                          -i "${KOLLA_INVENTORY}" \
-                          --configdir "${KOLLA_CONFIG_PATH}"
-                    '''
+kolla-ansible post-deploy \
+  -i "${KOLLA_INVENTORY}" \
+  --configdir "${KOLLA_CONFIG_PATH}"
+'''
                 }
             }
         }
@@ -166,17 +166,17 @@ PY
 
             steps {
                 sh '''#!/usr/bin/env bash
-                    set -euxo pipefail
+set -euxo pipefail
 
-                    export OS_CLIENT_CONFIG_FILE="${KOLLA_CONFIG_PATH}/clouds.yaml"
-                    export OS_CLOUD=kolla-admin
+export OS_CLIENT_CONFIG_FILE="${KOLLA_CONFIG_PATH}/clouds.yaml"
+export OS_CLOUD=kolla-admin
 
-                    openstack token issue
-                    openstack service list
-                    openstack compute service list
-                    openstack network agent list
-                    openstack hypervisor list
-                '''
+openstack token issue
+openstack service list
+openstack compute service list
+openstack network agent list
+openstack hypervisor list
+'''
             }
         }
     }
@@ -184,9 +184,9 @@ PY
     post {
         always {
             sh '''#!/usr/bin/env bash
-                rm -f "${KOLLA_CONFIG_PATH}/passwords.yml"
-                rm -f "${KOLLA_CONFIG_PATH}/clouds.yaml"
-            '''
+rm -f "${KOLLA_CONFIG_PATH}/passwords.yml"
+rm -f "${KOLLA_CONFIG_PATH}/clouds.yaml"
+'''
 
             cleanWs()
         }
