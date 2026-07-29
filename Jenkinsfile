@@ -15,7 +15,38 @@ pipeline {
     }
 
     stages {
-       
+        stage('Validate Deployer Dependencies') {
+        steps {
+            sh '''#!/usr/bin/env bash
+    set -euxo pipefail
+
+    echo "Running as: $(whoami)"
+    echo "HOME=${HOME}"
+
+    python - <<'PY'
+    import docker
+    import dbus
+    import netaddr
+    import yaml
+
+    print("docker:", docker.__version__)
+    print("dbus: available")
+    print("netaddr:", netaddr.__version__)
+    print("yaml: available")
+    PY
+
+    ansible-galaxy collection list |
+    grep -E 'ansible.utils|community.general'
+
+    ansible-doc \
+    -t filter \
+    ansible.utils.ipaddr >/dev/null
+
+    echo "Deployer dependencies are valid"
+    '''
+        }
+    }
+
         stage('Validate Files') {
             steps {
                 sh '''#!/usr/bin/env bash
@@ -161,4 +192,3 @@ PY
         }
     }
 }
-
