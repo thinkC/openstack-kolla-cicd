@@ -19,6 +19,8 @@ pipeline {
                 sh '''#!/usr/bin/env bash
 set -euxo pipefail
 
+echo "Bash version: ${BASH_VERSION}"
+
 test -f "${KOLLA_INVENTORY}"
 test -f "${KOLLA_CONFIG_PATH}/globals.yml"
 
@@ -69,7 +71,7 @@ ansible \
             }
         }
 
-        stage('Test Remote Privilege Escalation') {
+        stage('Test Remote Sudo') {
             steps {
                 sshagent(credentials: ['openstack-aio-ssh-key']) {
                     sh '''#!/usr/bin/env bash
