@@ -7,6 +7,7 @@ pipeline {
     }
 
     environment {
+        HOME = '/var/lib/jenkins'
         KOLLA_VENV = '/opt/kolla-venv'
         KOLLA_INVENTORY = "${WORKSPACE}/inventories/lab/multinode"
         KOLLA_CONFIG_PATH = "${WORKSPACE}/etc/kolla"
@@ -23,7 +24,7 @@ set -euxo pipefail
 echo "Running as: $(whoami)"
 echo "HOME=${HOME}"
 
-python - <<'PY'
+python -c '
 import docker
 import dbus
 import netaddr
@@ -33,14 +34,14 @@ print("docker:", docker.__version__)
 print("dbus: available")
 print("netaddr:", netaddr.__version__)
 print("yaml: available")
-PY
+'
 
-ansible-galaxy collection list |
-grep -E 'ansible.utils|community.general'
+ansible-galaxy collection list \
+    | grep -E "ansible.utils|community.general"
 
 ansible-doc \
-  -t filter \
-  ansible.utils.ipaddr >/dev/null
+    -t filter \
+    ansible.utils.ipaddr >/dev/null
 
 echo "Deployer dependencies are valid"
 '''
@@ -56,17 +57,17 @@ test -f "${KOLLA_INVENTORY}"
 test -f "${KOLLA_CONFIG_PATH}/globals.yml"
 
 ansible-inventory \
-  -i "${KOLLA_INVENTORY}" \
-  --graph
+    -i "${KOLLA_INVENTORY}" \
+    --graph
 
-python - <<'PY'
+python -c '
 import yaml
 
 with open("etc/kolla/globals.yml", encoding="utf-8") as stream:
     yaml.safe_load(stream)
 
 print("globals.yml syntax is valid")
-PY
+'
 '''
             }
         }
@@ -82,9 +83,10 @@ PY
                     sh '''#!/usr/bin/env bash
 set -euxo pipefail
 
-install -m 600 \
-  "${KOLLA_PASSWORDS_FILE}" \
-  "${KOLLA_CONFIG_PATH}/passwords.yml"
+install \
+    -m 600 \
+    "${KOLLA_PASSWORDS_FILE}" \
+    "${KOLLA_CONFIG_PATH}/passwords.yml"
 '''
                 }
             }
@@ -97,9 +99,9 @@ install -m 600 \
 set -euxo pipefail
 
 ansible \
-  -i "${KOLLA_INVENTORY}" \
-  all \
-  -m ping
+    -i "${KOLLA_INVENTORY}" \
+    all \
+    -m ping
 '''
                 }
             }
@@ -112,9 +114,9 @@ ansible \
 set -euxo pipefail
 
 kolla-ansible prechecks \
-  -i "${KOLLA_INVENTORY}" \
-  --configdir "${KOLLA_CONFIG_PATH}" \
-  --use-test-images
+    -i "${KOLLA_INVENTORY}" \
+    --configdir "${KOLLA_CONFIG_PATH}" \
+    --use-test-images
 '''
                 }
             }
@@ -133,9 +135,9 @@ kolla-ansible prechecks \
 set -euxo pipefail
 
 kolla-ansible deploy \
-  -i "${KOLLA_INVENTORY}" \
-  --configdir "${KOLLA_CONFIG_PATH}" \
-  --use-test-images
+    -i "${KOLLA_INVENTORY}" \
+    --configdir "${KOLLA_CONFIG_PATH}" \
+    --use-test-images
 '''
                 }
             }
@@ -152,8 +154,8 @@ kolla-ansible deploy \
 set -euxo pipefail
 
 kolla-ansible post-deploy \
-  -i "${KOLLA_INVENTORY}" \
-  --configdir "${KOLLA_CONFIG_PATH}"
+    -i "${KOLLA_INVENTORY}" \
+    --configdir "${KOLLA_CONFIG_PATH}"
 '''
                 }
             }
@@ -169,7 +171,7 @@ kolla-ansible post-deploy \
 set -euxo pipefail
 
 export OS_CLIENT_CONFIG_FILE="${KOLLA_CONFIG_PATH}/clouds.yaml"
-export OS_CLOUD=kolla-admin
+export OS_CLOUD="kolla-admin"
 
 openstack token issue
 openstack service list
@@ -184,6 +186,8 @@ openstack hypervisor list
     post {
         always {
             sh '''#!/usr/bin/env bash
+set +e
+
 rm -f "${KOLLA_CONFIG_PATH}/passwords.yml"
 rm -f "${KOLLA_CONFIG_PATH}/clouds.yaml"
 '''
